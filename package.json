@@ -14,7 +14,7 @@
     "@moralisweb3/common-evm-utils": "^2.26.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "ethers": "^6.13.1",
+    "ethers": "^5.7.1",
     "express": "^4.19.2",
     "mongoose": "^8.4.3",
     "moralis": "^2.26.6",

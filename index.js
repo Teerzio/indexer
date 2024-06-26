@@ -10,8 +10,13 @@ const web3 = new Web3()
 const app = express()
 const port = 5000
 app.use(express.json())
-app.use(cors())
+/*app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Request-With', 'X-Signature']
+}));*/
 
+const abiCoder = ethers.utils.defaultAbiCoder
 
 mongoose.connect("mongodb://127.0.0.1/events")
 .then(() => console.log ("connected to mongoDB"))
@@ -68,18 +73,19 @@ const verifySignature = (req, secret) => {
 }
 
 app.post("/api/addevent/", async (req, res) => {
-    verifySignature(req, process.env.STREAM_SECRET);
+console.log("req", req.body)
+try{
 
+    verifySignature(req, process.env.STREAM_SECRET);
     const data = req.body
 
-    for (const log in data.logs) {
 
         //Creation of a new Token Event
-        if(log.topic0 === "0x31406981fbfb40a5f93f14dd0c7b1193859d0703ae76450bce5976b11b64b54c"){
+        if(data.logs[0].topic0 == "0x31406981fbfb40a5f93f14dd0c7b1193859d0703ae76450bce5976b11b64b54c"){
 
             try{
-                const decodedData = ethers.utils.defaultAbiCoder.decode(
-                    ["address","address","string","string","string","uint256"], log.data
+                const decodedData = abiCoder.decode(
+                    ["address","address","string","string","string","uint256"], data.logs[0].data
                 )
 
                 const owner = decodedData[0].toString()
@@ -104,11 +110,11 @@ app.post("/api/addevent/", async (req, res) => {
             catch(e){console.log("error", e)}
         }
         //Buy Event on Bonding Curve
-        if(log.topic0 === "0x6d66e93fca9fffe37a7fc755f77f3e79dedac0bd90ac9b03ee8b1ccadc7b5da6"){
-
+        if(data.logs[0].topic0 == "0x6d66e93fca9fffe37a7fc755f77f3e79dedac0bd90ac9b03ee8b1ccadc7b5da6"){
+            console.log("buy event recognized")
             try{
-                const decodedData = ethers.utils.defaultAbiCoder.decode(
-                    ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], log.data
+                const decodedData = abiCoder.decode(
+                    ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], data.logs[0].data
                 )
 
                 const buyer = decodedData[0].toString()
@@ -138,11 +144,11 @@ app.post("/api/addevent/", async (req, res) => {
             catch(e){console.log("error", e)}
         }
         //Sell Event on Bonding Curve
-        if(log.topic0 === "0xbbc1e508047ac950b7c85ff5e37d8d585d6f2e29ce4099daf2ba04b2b5e43ca3"){
+        if(data.logs[0].topic0 == "0xbbc1e508047ac950b7c85ff5e37d8d585d6f2e29ce4099daf2ba04b2b5e43ca3"){
 
             try{
-                const decodedData = ethers.utils.defaultAbiCoder.decode(
-                    ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], log.data
+                const decodedData = abiCoder.decode(
+                    ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], data.logs[0].data
                 )
 
                 const seller = decodedData[0].toString()
@@ -172,11 +178,11 @@ app.post("/api/addevent/", async (req, res) => {
             catch(e){console.log("error", e)}
         }
         //Launch on Uniswap
-        if(log.topic0 === "0x7ce543d1780f3bdc3dac42da06c95da802653cd1b212b8d74ec3e3c33ad7095c"){
+        if(data.logs[0].topic0 == "0x7ce543d1780f3bdc3dac42da06c95da802653cd1b212b8d74ec3e3c33ad7095c"){
 
             try{
-                const decodedData = ethers.utils.defaultAbiCoder.decode(
-                    ["address","address","uint256","uint256","uint256"], log.data
+                const decodedData = abiCoder.decode(
+                    ["address","address","uint256","uint256","uint256"], data.logs[0].data
                 )
 
                 const tokenAddress = decodedData[0].toString()
@@ -198,13 +204,17 @@ app.post("/api/addevent/", async (req, res) => {
             catch(e){console.log("error", e)}
         }
 
-    }
-        res.status(200).send("Events processed")
+    
+    res.sendStatus(200)
+} catch (e) {
+    console.log("Error: ", e.message);
+    res.status(400).send(e.message);
+}
 
 })
 
-app.get("/", (req, res) => {
-    res.send("Hello Werld")
+app.get("/api", (req, res) => {
+    res.sendStatus(200)
 })
 
 
