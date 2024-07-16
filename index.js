@@ -4,17 +4,19 @@ const mongoose = require('mongoose');
 const ethers = require("ethers")
 const {Web3} = require('web3');
 const cors = require('cors');
+const { json } = require("express");
 require('dotenv').config()
 
 const web3 = new Web3()
 const app = express()
 const port = 5000
 app.use(express.json())
-/*app.use(cors({
-    origin: '*',
+app.use(cors({
+    origin: ['http://80.187.73.221:5173','http://localhost:5173'],
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Request-With', 'X-Signature']
-}));*/
+    allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Request-With', 'X-Signature'],
+    credentials: true 
+}));
 
 const abiCoder = ethers.utils.defaultAbiCoder
 
@@ -47,7 +49,10 @@ const created = new mongoose.Schema({
     name: String,
     symbol: String,
     description: String,
-    timestamp: Number
+    timestamp: Number,
+    buys: {type: Array, default: []},
+    sells: {type: Array, default: []},
+    comments:{type: Array, default: []}
 }, {collection: "created", timestamps: true})
 
 const launchedOnUniswap = new mongoose.Schema({
@@ -102,7 +107,10 @@ try{
                     name: name,
                     symbol: symbol,
                     description: description,
-                    timestamp: timestamp
+                    timestamp: timestamp,
+                    buys: [],
+                    sells: [],
+                    comments: []
                 })
                 
 
@@ -140,6 +148,11 @@ try{
                     timestamp: timestamp
                 })
 
+                await Created.updateOne(
+                    {tokenAddress: tokenAddress},
+                    {$push: {buys:{maker: buyer, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
+                    )
+
             }
             catch(e){console.log("error", e)}
         }
@@ -173,6 +186,11 @@ try{
                     userTokenBalance: userTokenBalance,
                     timestamp: timestamp
                 })
+
+                await Created.updateOne(
+                    {tokenAddress: tokenAddress},
+                    {$push: {sells:{maker: seller, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
+                )
 
             }
             catch(e){console.log("error", e)}
@@ -213,9 +231,71 @@ try{
 
 })
 
-app.get("/api", (req, res) => {
-    res.sendStatus(200)
+app.get("/api/getCreated", async (req, res) => {
+    try{
+
+        const data = await Created.find()
+        res.json(data)        
+        
+    }catch(e){
+        console.log("error",e)
+        res.status(500).json({ error: e.message }) // Adjust status as needed
+
+    }
+
 })
+
+app.get("/api/getOne/:tokenAddress", async (req,res) =>{
+    
+    const {tokenAddress} = req.params
+    
+    try {
+
+        const created = await Created.find({tokenAddress: tokenAddress})
+        res.json(created)
+        
+    } catch (error) {
+        console.log("error",error)
+        res.status(500).json({ error: error.message }) 
+    }
+})
+
+app.get("/api/getDev/:walletAddress", async (req,res) => {
+    const {walletAddress} = req.params
+    try{
+        const devTokens = await Created.find({owner: walletAddress})
+        res.json(devTokens)
+
+    }catch(e){
+        console.log("error fetching dev data", e)
+        res.status(500).json({error: e.message})
+    }
+
+})
+
+app.post("/api/postComment/:tokenAddress", async (req,res) =>{
+    const {tokenAddress} = req.params
+    const { account, comment, timestamp } = req.body;
+
+    console.log("account", account)
+    console.log("comment", comment)
+    console.log("timestamp", timestamp)
+    console.log("tokenAddress", tokenAddress)
+
+
+
+    try{
+        await Created.updateOne(
+            {tokenAddress: tokenAddress},
+            {$push: {comments: {account, comment, timestamp}}}
+        )
+        res.status(201).send("comment successfully saved")
+    }catch(e){
+        res.status(500).json({error: e.message})
+        console.log("error",e)
+    }
+})
+
 
 
 
