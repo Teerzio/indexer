@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@moralisweb3/common-evm-utils": "^2.26.6",
+    "axios": "^1.7.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "ethers": "^5.7.1",

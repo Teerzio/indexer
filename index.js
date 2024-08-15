@@ -8,15 +8,38 @@ const { json } = require("express");
 require('dotenv').config()
 const http = require('http');
 const { Server } = require('socket.io');
+const axios = require('axios');
+
 
 const web3 = new Web3()
 const app = express()
+app.use(express.json());
 
 
 const port = 5000
-app.use(express.json())
+const botToken = process.env.BOT_TOKEN
+const chatID = "@keklaunches"
+console.log(`Bot Token: ${botToken}`);  // Debugging line
+
+
+const sendTelegramMessage = async (message) => {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    try {
+        const response = await axios.post(url, {
+            chat_id: chatID,
+            text: message,
+            parse_mode: 'MarkdownV2'  
+            });
+        console.log('Message sent to Telegram group', response.data);
+    } catch (error) {
+        console.error('Error sending message to Telegram:', error.response ? error.response.data : error.message);
+    }
+};
+
+
+{/*app.use(express.json())
 app.use(cors({
-    origin: ['http://80.187.73.221:5173','http://localhost:5173'],
+    origin: ['*'],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Request-With', 'X-Signature'],
     credentials: true 
@@ -25,10 +48,48 @@ app.use(cors({
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ['http://80.187.73.221:5173', 'http://localhost:5173'],
+        origin: ['*'],
         methods: ['GET', 'POST'],
         allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Request-With', 'X-Signature'],
+        credentials: true
 
+    }
+});*/}
+
+const allowedOrigins = ['https://kek.fm','https://www.kek.fm','https://localhost:5173', 'https://localhost:5174','https://80.187.102.20']; // Add your domain here if you start using one
+
+
+// Configure CORS for Express
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl requests, etc.)
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Requested-With', 'X-Signature'],
+    credentials: true 
+}));
+
+const server = http.createServer(app);
+
+// Configure CORS for Socket.IO
+const io = new Server(server, {
+    cors: {
+        origin: function (origin, callback) {
+            // Allow requests with no origin (like mobile apps, curl requests, etc.)
+            if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
+        methods: ['GET', 'POST'],
+        allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization', 'X-Requested-With', 'X-Signature'],
+        credentials: true
     }
 });
 
@@ -47,6 +108,7 @@ mongoose.connection.on('error', err => {
   io.on('connection', (socket) => {
     console.log('A user connected');
 
+
     socket.on('disconnect', () => {
         console.log('User disconnected');
     });
@@ -54,6 +116,7 @@ mongoose.connection.on('error', err => {
 
 
 const buySell = new mongoose.Schema({
+    chainId: { type: String, required: true },
     type: String,
     maker: String,
     tokenAddress: String,
@@ -67,6 +130,7 @@ const buySell = new mongoose.Schema({
 }, {collection: "buys_sells", timestamps: true})
 
 const created = new mongoose.Schema({
+    chainId: { type: String, required: true },
     type: String,
     owner: String,
     tokenAddress: String,
@@ -80,6 +144,7 @@ const created = new mongoose.Schema({
 }, {collection: "created", timestamps: true})
 
 const launchedOnUniswap = new mongoose.Schema({
+    chainId: { type: String, required: true },
     type: String,
     tokenAddress: String,
     pairAddress: String,
@@ -89,6 +154,7 @@ const launchedOnUniswap = new mongoose.Schema({
 },{collection: "uniswap", timestamps:true})
 
 const tehShit = new mongoose.Schema({
+    chainId: { type: String, required: true },
     type: String,
     maker: String,
     tokenAddress: String,
@@ -116,8 +182,9 @@ const verifySignature = (req, secret) => {
 
 }
 
-const addBuyEvent = async (data) => {
+const addBuyEvent = async (data, chain) => {
     try{
+        const chainId = parseInt(chain, 16)
         const decodedData = abiCoder.decode(
             ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], data.data
         )
@@ -133,7 +200,8 @@ const addBuyEvent = async (data) => {
         const timestamp = decodedData[8].toString()
 
         const buyEvent = await BuySell.create({
-            type: "Buy",
+            chainId: chainId,
+            type: "buy",
             maker: buyer,
             tokenAddress: tokenAddress,
             amountToken: amountToken,
@@ -142,12 +210,12 @@ const addBuyEvent = async (data) => {
             contractTokenBalance: contractTokenBalance,
             contractETHBalance: contractETHBalance,
             userTokenBalance: userTokenBalance,
-            timestamp: timestamp
+            timestamp: timestamp,
         })
 
         await Created.updateOne(
             {tokenAddress: tokenAddress},
-            {$push: {buys:{type:"buy", maker: buyer, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
+            {$push: {buys:{chainId, type:"buy", maker: buyer, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
         )
 
         io.emit('newBuyEvent', buyEvent);
@@ -158,6 +226,7 @@ const addBuyEvent = async (data) => {
                 const exists = await TehShit.findOne({tokenAddress: tokenAddress})
                 if(!exists){
                     await TehShit.create({
+                        chainId: chainId,
                         type: "TehShit",
                         maker: buyer,
                         tokenAddress: tokenAddress,
@@ -167,7 +236,7 @@ const addBuyEvent = async (data) => {
                         contractTokenBalance: contractTokenBalance,
                         contractETHBalance: contractETHBalance,
                         userTokenBalance: userTokenBalance,
-                        timestamp: timestamp
+                        timestamp: timestamp,
                     })
                 }
 
@@ -179,8 +248,9 @@ const addBuyEvent = async (data) => {
     catch(e){console.log("error", e)}
 }
 
-const addSellEvent = async (data) => {
+const addSellEvent = async (data, chain) => {
     try{
+        const chainId = parseInt(chain, 16)
         const decodedData = abiCoder.decode(
             ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], data.data
         )
@@ -196,7 +266,8 @@ const addSellEvent = async (data) => {
         const timestamp = decodedData[8].toString()
 
         const sellEvent = await BuySell.create({
-            type: "Sell",
+            chainId: chainId,
+            type: "sell",
             maker: seller,
             tokenAddress: tokenAddress,
             amountToken: amountToken,
@@ -205,12 +276,12 @@ const addSellEvent = async (data) => {
             contractTokenBalance: contractTokenBalance,
             contractETHBalance: contractETHBalance,
             userTokenBalance: userTokenBalance,
-            timestamp: timestamp
+            timestamp: timestamp,
         })
 
         await Created.updateOne(
             {tokenAddress: tokenAddress},
-            {$push: {sells:{type:"sell", maker: seller, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
+            {$push: {sells:{chainId, type:"sell", maker: seller, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
         )
 
         io.emit('newSellEvent', sellEvent);
@@ -220,8 +291,9 @@ const addSellEvent = async (data) => {
     catch(e){console.log("error", e)}
 }
 
-const addCreationEvent = async (data) => {
+const addCreationEvent = async (data, chain) => {
     try{
+        const chainId = parseInt(chain, 16)
         const decodedData = abiCoder.decode(
             ["address","address","string","string","string","uint256"], data.data
         )
@@ -233,26 +305,45 @@ const addCreationEvent = async (data) => {
         const description = decodedData[4].toString()
         const timestamp = decodedData[5].toString()
 
-        await Created.create({
-            type: "Created",
-            owner: owner,
-            tokenAddress: tokenAddress,
-            name: name,
-            symbol: symbol,
-            description: description,
-            timestamp: timestamp,
-            buys: [],
-            sells: [],
-            comments: []
-        })
-        
+        const doubleCheck = await Created.find({tokenAddress: tokenAddress})
+
+        if(!doubleCheck.length > 0){
+
+            const creationEvent = await Created.create({
+                chainId: chainId,
+                type: "Created",
+                owner: owner,
+                tokenAddress: tokenAddress,
+                name: name,
+                symbol: symbol,
+                description: description,
+                timestamp: timestamp,
+                buys: [],
+                sells: [],
+                comments: [],
+            })
+            
+            io.emit('newCreationEvent', creationEvent);
+
+
+
+            const escapeMarkdownV2 = (text) => {
+                return text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, '\\$1');
+            };
+
+            const tokenUrl = `https://kek.fm/launch?token=${tokenAddress}`;
+            const message = `*New kek Launch detected*\n\n*name:* ${escapeMarkdownV2(name)}\n*ticker:* ${escapeMarkdownV2(symbol)}\n\n*check:* [link](${escapeMarkdownV2(tokenUrl)})\n\n🎂🎂🎂🎂🎂🎂🎂`;
+
+            sendTelegramMessage(message)
+        }
 
     }
     catch(e){console.log("error", e)}
 }
 
-const addUniswapEvent = async (data) => {
+const addUniswapEvent = async (data, chain) => {
     try{
+        const chainId = parseInt(chain, 16)
         const decodedData = abiCoder.decode(
             ["address","address","uint256","uint256","uint256"], data.data
         )
@@ -263,185 +354,48 @@ const addUniswapEvent = async (data) => {
         const amountTokensToLiq = decodedData[3].toString()
         const timestamp = decodedData[4].toString()
 
-        await Uniswap.create({
+        const uniswapEvent = await Uniswap.create({
+            chainId: chainId,
             type: "Launch",
             tokenAddress: tokenAddress,
             pairAddress: pairAddress,
             amountETHToLiq: amountETHToLiq,
             amountTokensToLiq: amountTokensToLiq,
-            timestamp: timestamp
+            timestamp: timestamp,
         })
+
+        io.emit('newUniswapEvent', uniswapEvent);
+
         
     }
     catch(e){console.log("error", e)}
 }
 
 
- 
-
 app.post("/api/addevent/", async (req, res) => {
-if(req.body.logs.length > 1){
-    console.log("data[1]", req.body.logs[1].topic0)
-}
+
 
 try{
     verifySignature(req, process.env.STREAM_SECRET);
     const data = req.body
     const logs = data.logs
+    const chain = data.chainId
 
     for(let log of logs){
         if(log.topic0 == "0x31406981fbfb40a5f93f14dd0c7b1193859d0703ae76450bce5976b11b64b54c"){
-            addCreationEvent(log)
+            addCreationEvent(log, chain)
         }
         if(log.topic0 == "0x6d66e93fca9fffe37a7fc755f77f3e79dedac0bd90ac9b03ee8b1ccadc7b5da6"){
-            addBuyEvent(log)
+            addBuyEvent(log, chain)
         }
         if(log.topic0 == "0xbbc1e508047ac950b7c85ff5e37d8d585d6f2e29ce4099daf2ba04b2b5e43ca3"){
-            addSellEvent(log)
+            addSellEvent(log, chain)
         }
-        if(log.topic0 == "0x7ce543d1780f3bdc3dac42da06c95da802653cd1b212b8d74ec3e3c33ad7095c"){
-            addUniswapEvent(log)
+        if(log.topic0 == "0x5e7261165137eed83c670bf88ba54d8a4e1bdf6c70b7244d9d0c6ec85360fe79"){
+            addUniswapEvent(log, chain)
         }
         
     }
-
-/*
-        //Creation of a new Token Event
-        if(data.logs[0].topic0 == "0x31406981fbfb40a5f93f14dd0c7b1193859d0703ae76450bce5976b11b64b54c"){
-
-            try{
-                const decodedData = abiCoder.decode(
-                    ["address","address","string","string","string","uint256"], data.logs[0].data
-                )
-
-                const owner = decodedData[0].toString()
-                const tokenAddress = decodedData[1].toString()
-                const name = decodedData[2].toString()
-                const symbol = decodedData[3].toString()
-                const description = decodedData[4].toString()
-                const timestamp = decodedData[5].toString()
-
-                await Created.create({
-                    type: "Created",
-                    owner: owner,
-                    tokenAddress: tokenAddress,
-                    name: name,
-                    symbol: symbol,
-                    description: description,
-                    timestamp: timestamp,
-                    buys: [],
-                    sells: [],
-                    comments: []
-                })
-                
-
-            }
-            catch(e){console.log("error", e)}
-        }
-        //Buy Event on Bonding Curve
-        if(data.logs[0].topic0 == "0x6d66e93fca9fffe37a7fc755f77f3e79dedac0bd90ac9b03ee8b1ccadc7b5da6"){
-            console.log("buy event recognized")
-            try{
-                const decodedData = abiCoder.decode(
-                    ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], data.logs[0].data
-                )
-
-                const buyer = decodedData[0].toString()
-                const tokenAddress = decodedData[1].toString()
-                const amountToken = decodedData[2].toString()
-                const lastTokenPrice = decodedData[3].toString()
-                const amountETH = decodedData[4].toString()
-                const contractTokenBalance = decodedData[5].toString()
-                const contractETHBalance = decodedData[6].toString()
-                const userTokenBalance = decodedData[7].toString()
-                const timestamp = decodedData[8].toString()
-
-                await BuySell.create({
-                    type: "Buy",
-                    maker: buyer,
-                    tokenAddress: tokenAddress,
-                    amountToken: amountToken,
-                    lastTokenPrice: lastTokenPrice,
-                    amountETH: amountETH,
-                    contractTokenBalance: contractTokenBalance,
-                    contractETHBalance: contractETHBalance,
-                    userTokenBalance: userTokenBalance,
-                    timestamp: timestamp
-                })
-
-                await Created.updateOne(
-                    {tokenAddress: tokenAddress},
-                    {$push: {buys:{type:"buy", maker: buyer, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
-                    )
-
-            }
-            catch(e){console.log("error", e)}
-        }
-        //Sell Event on Bonding Curve
-        if(data.logs[0].topic0 == "0xbbc1e508047ac950b7c85ff5e37d8d585d6f2e29ce4099daf2ba04b2b5e43ca3"){
-
-            try{
-                const decodedData = abiCoder.decode(
-                    ["address","address","uint256","uint256","uint256","uint256","uint256","uint256","uint256"], data.logs[0].data
-                )
-
-                const seller = decodedData[0].toString()
-                const tokenAddress = decodedData[1].toString()
-                const amountToken = decodedData[2].toString()
-                const lastTokenPrice = decodedData[3].toString()
-                const amountETH = decodedData[4].toString()
-                const contractTokenBalance = decodedData[5].toString()
-                const contractETHBalance = decodedData[6].toString()
-                const userTokenBalance = decodedData[7].toString()
-                const timestamp = decodedData[8].toString()
-
-                await BuySell.create({
-                    type: "Sell",
-                    maker: seller,
-                    tokenAddress: tokenAddress,
-                    amountToken: amountToken,
-                    lastTokenPrice: lastTokenPrice,
-                    amountETH: amountETH,
-                    contractTokenBalance: contractTokenBalance,
-                    contractETHBalance: contractETHBalance,
-                    userTokenBalance: userTokenBalance,
-                    timestamp: timestamp
-                })
-
-                await Created.updateOne(
-                    {tokenAddress: tokenAddress},
-                    {$push: {sells:{type:"sell", maker: seller, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
-                )
-
-            }
-            catch(e){console.log("error", e)}
-        }
-        //Launch on Uniswap
-        if(data.logs[0].topic0 == "0x7ce543d1780f3bdc3dac42da06c95da802653cd1b212b8d74ec3e3c33ad7095c"){
-
-            try{
-                const decodedData = abiCoder.decode(
-                    ["address","address","uint256","uint256","uint256"], data.logs[0].data
-                )
-
-                const tokenAddress = decodedData[0].toString()
-                const pairAddress = decodedData[1].toString()
-                const amountETHToLiq = decodedData[2].toString()
-                const amountTokensToLiq = decodedData[3].toString()
-                const timestamp = decodedData[4].toString()
-
-                await Uniswap.create({
-                    type: "Launch",
-                    tokenAddress: tokenAddress,
-                    pairAddress: pairAddress,
-                    amountETHToLiq: amountETHToLiq,
-                    amountTokensToLiq: amountTokensToLiq,
-                    timestamp: timestamp
-                })
-                
-            }
-            catch(e){console.log("error", e)}
-        }*/
 
     
     res.sendStatus(200)
@@ -452,7 +406,7 @@ try{
 
 })
 
-app.get("/api/getCreated", async (req, res) => {
+/*app.get("/api/getCreated", async (req, res) => {
     try{
 
         const data = await Created.find()
@@ -463,14 +417,59 @@ app.get("/api/getCreated", async (req, res) => {
         res.status(500).json({ error: e.message }) // Adjust status as needed
     }
 
-})
+})*/
+
+app.get("/api/getCreated/:page", async (req, res) => {
+    const { page } = req.params;
+    const { chainId } = req.query;
+    const limit = 20; // Number of items per page
+    const skip = (page - 1) * limit;
+
+    try {
+        const data = await Created.find({chainId: chainId});
+
+        // Filter for unique items based on tokenAddress
+        const uniqueData = data.filter((item, index, self) =>
+            index === self.findIndex((t) => t.tokenAddress === item.tokenAddress)
+        );
+
+        // Sort by the most recent timestamp
+        uniqueData.sort((a, b) => b.timestamp - a.timestamp);
+
+        // Paginate the sorted and unique data
+        const paginatedData = uniqueData.slice(skip, skip + limit);
+
+        // Calculate total pages
+        const totalPages = Math.ceil(uniqueData.length / limit);
+
+        // Return the paginated data and total pages
+        res.json({
+            data: paginatedData,
+            totalPages: totalPages
+        });
+
+    } catch (e) {
+        console.log("error", e);
+        res.status(500).json({ error: e.message }); // Adjust status as needed
+    }
+});
+
 
 app.get("/api/getLast", async (req,res) => {
     try{
         const lastTrade = await BuySell.find().sort({timestamp: -1}).limit(1)
-        const data = await Created.find({tokenAddress: lastTrade.tokenAddress})
-        data.sort((a,b) => b.timestamp - a.timestamp)
+        const tokenAddress = lastTrade[0].tokenAddress
+        const data = await Created.find({tokenAddress: tokenAddress }).limit(1)
+        res.status(200).json(data);
+    }catch(e){
+        console.log("error",e)
+        res.send(500).json({error: e.message})
+    }
+})
 
+app.get("/api/getLastCreated", async (req,res) => {
+    try{
+        const data = await Created.find().sort({timestamp: -1}).limit(1)
         res.status(200).json(data[0]);
     }catch(e){
         console.log("error",e)
@@ -478,12 +477,30 @@ app.get("/api/getLast", async (req,res) => {
     }
 })
 
-app.get("/api/getOne/:tokenAddress", async (req,res) =>{
-    
-    const {tokenAddress} = req.params
-    
-    try {
+app.get("/api/getUniswap", async (req,res) => {
+    try{
+        const data = await Uniswap.find().sort({timestamp: -1}).limit(1)
+        res.status(200).json(data[0]);
+    }catch(e){
+        console.log("error",e)
+        res.send(500).json({error: e.message})
+    }
+})
 
+app.get("/api/getOneUniswap/:tokenAddress", async (req,res) => {
+    const {tokenAddress} = req.params
+    try{
+        const data = await Uniswap.find({tokenAddress: tokenAddress})
+        res.status(200).json(data);
+    }catch(e){
+        console.log("error",e)
+        res.send(500).json({error: e.message})
+    }
+})
+
+app.get("/api/getOne/:tokenAddress", async (req,res) =>{
+    const {tokenAddress} = req.params
+    try {
         const created = await Created.find({tokenAddress: tokenAddress})
         res.json(created)
         
@@ -516,6 +533,7 @@ app.post("/api/postComment/:tokenAddress", async (req,res) =>{
             {$push: {comments: {account, comment, timestamp}}}
         )
         res.status(201).send("comment successfully saved")
+        io.emit("newComment", {account:account, comment:comment, timestamp:timestamp})
     }catch(e){
         res.status(500).json({error: e.message})
         console.log("error",e)
@@ -527,7 +545,7 @@ app.get("/api/getShit", async (req,res) =>{
         const shit = await TehShit.find()
         res.json(shit)
     }catch(e){
-        res.status(500).json({error:e.message})
+        res.status(500).json({error: e.message})
         console.log("error",e)
     }
 })
