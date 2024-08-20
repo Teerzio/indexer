@@ -9,6 +9,9 @@ require('dotenv').config()
 const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
+const DOMPurify = require('dompurify');
+const { JSDOM } = require('jsdom');
+
 
 
 const web3 = new Web3()
@@ -21,6 +24,8 @@ const botToken = process.env.BOT_TOKEN
 const chatID = "@keklaunches"
 console.log(`Bot Token: ${botToken}`);  // Debugging line
 
+const window = new JSDOM('').window;
+const purify = DOMPurify(window);
 
 const sendTelegramMessage = async (message) => {
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
@@ -528,12 +533,13 @@ app.post("/api/postComment/:tokenAddress", async (req,res) =>{
     const { account, comment, timestamp } = req.body;
 
     try{
+        sanitizedComment = purify.sanitize(comment);
         await Created.updateOne(
             {tokenAddress: tokenAddress},
-            {$push: {comments: {account, comment, timestamp}}}
+            {$push: {comments: {account, comment: sanitizedComment, timestamp}}}
         )
         res.status(201).send("comment successfully saved")
-        io.emit("newComment", {account:account, comment:comment, timestamp:timestamp})
+        io.emit("newComment", {account:account, comment: sanitizedComment, timestamp:timestamp})
     }catch(e){
         res.status(500).json({error: e.message})
         console.log("error",e)
