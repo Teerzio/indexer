@@ -126,10 +126,10 @@ const buySell = new mongoose.Schema({
     maker: String,
     tokenAddress: String,
     amountToken: Number,
+    tokenPriceBefore: Number,
     lastTokenPrice: Number,
     amountETH: Number,
     contractTokenBalance: Number,
-    contractETHBalance: Number,
     userTokenBalance: Number,
     timestamp: Number
 }, {collection: "buys_sells", timestamps: true})
@@ -141,7 +141,7 @@ const created = new mongoose.Schema({
     tokenAddress: String,
     name: String,
     symbol: String,
-    description: String,
+    description: {type: mongoose.Schema.Types.Mixed},
     timestamp: Number,
     buys: {type: Array, default: []},
     sells: {type: Array, default: []},
@@ -164,6 +164,7 @@ const tehShit = new mongoose.Schema({
     maker: String,
     tokenAddress: String,
     amountToken: Number,
+    tokenPriceBefore: Number,
     lastTokenPrice: Number,
     amountETH: Number,
     contractTokenBalance: Number,
@@ -197,10 +198,10 @@ const addBuyEvent = async (data, chain) => {
         const buyer = decodedData[0].toString()
         const tokenAddress = decodedData[1].toString()
         const amountToken = decodedData[2].toString()
-        const lastTokenPrice = decodedData[3].toString()
-        const amountETH = decodedData[4].toString()
-        const contractTokenBalance = decodedData[5].toString()
-        const contractETHBalance = decodedData[6].toString()
+        const tokenPriceBefore = decodedData[3].toString()
+        const lastTokenPrice = decodedData[4].toString()
+        const amountETH = decodedData[5].toString()
+        const contractTokenBalance = decodedData[6].toString()
         const userTokenBalance = decodedData[7].toString()
         const timestamp = decodedData[8].toString()
 
@@ -210,17 +211,17 @@ const addBuyEvent = async (data, chain) => {
             maker: buyer,
             tokenAddress: tokenAddress,
             amountToken: amountToken,
+            tokenPriceBefore: tokenPriceBefore,
             lastTokenPrice: lastTokenPrice,
             amountETH: amountETH,
             contractTokenBalance: contractTokenBalance,
-            contractETHBalance: contractETHBalance,
             userTokenBalance: userTokenBalance,
             timestamp: timestamp,
         })
 
         await Created.updateOne(
             {tokenAddress: tokenAddress},
-            {$push: {buys:{chainId, type:"buy", maker: buyer, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
+            {$push: {buys:{chainId, type:"buy", maker: buyer, amountToken, tokenPriceBefore, lastTokenPrice, amountETH, contractTokenBalance, userTokenBalance, timestamp}}}
         )
 
         io.emit('newBuyEvent', buyEvent);
@@ -236,10 +237,10 @@ const addBuyEvent = async (data, chain) => {
                         maker: buyer,
                         tokenAddress: tokenAddress,
                         amountToken: amountToken,
+                        tokenPriceBefore: tokenPriceBefore,
                         lastTokenPrice: lastTokenPrice,
                         amountETH: amountETH,
                         contractTokenBalance: contractTokenBalance,
-                        contractETHBalance: contractETHBalance,
                         userTokenBalance: userTokenBalance,
                         timestamp: timestamp,
                     })
@@ -263,10 +264,10 @@ const addSellEvent = async (data, chain) => {
         const seller = decodedData[0].toString()
         const tokenAddress = decodedData[1].toString()
         const amountToken = decodedData[2].toString()
-        const lastTokenPrice = decodedData[3].toString()
-        const amountETH = decodedData[4].toString()
-        const contractTokenBalance = decodedData[5].toString()
-        const contractETHBalance = decodedData[6].toString()
+        const tokenPriceBefore = decodedData[3].toString()
+        const lastTokenPrice = decodedData[4].toString()
+        const amountETH = decodedData[5].toString()
+        const contractTokenBalance = decodedData[6].toString()
         const userTokenBalance = decodedData[7].toString()
         const timestamp = decodedData[8].toString()
 
@@ -276,17 +277,17 @@ const addSellEvent = async (data, chain) => {
             maker: seller,
             tokenAddress: tokenAddress,
             amountToken: amountToken,
+            tokenPriceBefore: tokenPriceBefore,
             lastTokenPrice: lastTokenPrice,
             amountETH: amountETH,
             contractTokenBalance: contractTokenBalance,
-            contractETHBalance: contractETHBalance,
             userTokenBalance: userTokenBalance,
             timestamp: timestamp,
         })
 
         await Created.updateOne(
             {tokenAddress: tokenAddress},
-            {$push: {sells:{chainId, type:"sell", maker: seller, amountToken, lastTokenPrice, amountETH, contractTokenBalance, contractETHBalance, userTokenBalance, timestamp}}}
+            {$push: {sells:{chainId, type:"sell", maker: seller, amountToken, tokenPriceBefore, lastTokenPrice, amountETH, contractTokenBalance, userTokenBalance, timestamp}}}
         )
 
         io.emit('newSellEvent', sellEvent);
@@ -307,8 +308,11 @@ const addCreationEvent = async (data, chain) => {
         const tokenAddress = decodedData[1].toString()
         const name = decodedData[2].toString()
         const symbol = decodedData[3].toString()
-        const description = decodedData[4].toString()
+        const rawDescription = decodedData[4].toString()//changed from description to parse it
         const timestamp = decodedData[5].toString()
+        
+        //parse JSON string
+        const description = JSON.parse(rawDescription)
 
         const doubleCheck = await Created.find({tokenAddress: tokenAddress})
 
