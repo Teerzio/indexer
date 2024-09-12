@@ -19,7 +19,9 @@ const app = express()
 app.use(express.json());
 
 
-const port = 5000
+// const port = 5000 //port on vps
+const port = 10000 //port on render
+
 const botToken = process.env.BOT_TOKEN
 const chatID = "@keklaunches"
 console.log(`Bot Token: ${botToken}`);  // Debugging line
