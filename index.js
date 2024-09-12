@@ -100,7 +100,8 @@ const io = new Server(server, {
 
 const abiCoder = ethers.utils.defaultAbiCoder
 
-mongoose.connect("mongodb://127.0.0.1/events")
+//mongoose.connect("mongodb://127.0.0.1/events") //for vps server
+mongoose.connect(process.env.MONGO_URI) // for atlas cloud db
 .then(() => console.log ("connected to mongoDB"))
 .catch(error => console.log("error connecting to mongoDB", error))
 
