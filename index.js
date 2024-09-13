@@ -466,11 +466,11 @@ app.get("/api/getCreated/:page", async (req, res) => {
     }
 });
 
-
 app.get("/api/getLast", async (req,res) => {
     try{
         const lastTrade = await BuySell.find().sort({timestamp: -1}).limit(1)
-        if (lastTrade){
+        console.log("lat trade", lastTrade)
+        if (lastTrade && lastTrade[0].tokenAddress){
             const tokenAddress = lastTrade[0].tokenAddress
             const data = await Created.find({tokenAddress: tokenAddress }).limit(1)
             res.status(200).json(data);
