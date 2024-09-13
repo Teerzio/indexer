@@ -470,7 +470,7 @@ app.get("/api/getLast", async (req,res) => {
     try{
         const lastTrade = await BuySell.find().sort({timestamp: -1}).limit(1)
         console.log("lat trade", lastTrade)
-        if (lastTrade && lastTrade[0].tokenAddress){
+        if (lastTrade.length > 0){
             const tokenAddress = lastTrade[0].tokenAddress
             const data = await Created.find({tokenAddress: tokenAddress }).limit(1)
             res.status(200).json(data);
