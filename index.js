@@ -63,7 +63,7 @@ const io = new Server(server, {
     }
 });*/}
 
-const allowedOrigins = ['https://kek.fm','https://www.kek.fm','https://localhost:5173', 'https://localhost:5174','https://80.187.102.20']; // Add your domain here if you start using one
+const allowedOrigins = ['https://kek.fm','https://www.kek.fm','https://localhost:5173', 'https://localhost:5174','https://80.187.102.20', 'https://kek-rosy.vercel.app/']; // Add your domain here if you start using one
 
 
 // Configure CORS for Express
