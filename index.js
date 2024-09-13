@@ -470,9 +470,13 @@ app.get("/api/getCreated/:page", async (req, res) => {
 app.get("/api/getLast", async (req,res) => {
     try{
         const lastTrade = await BuySell.find().sort({timestamp: -1}).limit(1)
-        const tokenAddress = lastTrade[0].tokenAddress
-        const data = await Created.find({tokenAddress: tokenAddress }).limit(1)
-        res.status(200).json(data);
+        if (lastTrade){
+            const tokenAddress = lastTrade[0].tokenAddress
+            const data = await Created.find({tokenAddress: tokenAddress }).limit(1)
+            res.status(200).json(data);
+
+        }
+        res.status(200);
     }catch(e){
         console.log("error",e)
         res.send(500).json({error: e.message})
